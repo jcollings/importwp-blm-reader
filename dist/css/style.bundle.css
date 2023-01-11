@@ -1,0 +1,13 @@
+.iwp-preview--blm th,
+.iwp-preview--blm td {
+  width: 50%;
+  text-align: left;
+}
+
+.iwp-preview--blm th span,
+.iwp-preview--blm td span {
+  width: 100%;
+  display: block;
+  padding: 0.2em 0.5em;
+  box-sizing: border-box;
+}
