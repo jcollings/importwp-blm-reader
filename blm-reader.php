@@ -5,7 +5,7 @@
  * Plugin URI: https://www.importwp.com
  * Description: Allow Import WP to import BLM Files.
  * Author: James Collings <james@jclabs.co.uk>
- * Version: 0.0.1 
+ * Version: 0.0.2 
  * Author URI: https://www.importwp.com
  * Network: True
  */
@@ -13,7 +13,7 @@
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 define('IWP_BLM_READER_FILE', __FILE__);
-define('IWP_BLM_READER_VERSION', '0.0.1');
+define('IWP_BLM_READER_VERSION', '0.0.2');
 
 add_action('admin_init', 'iwp_blm_reader_check');
 

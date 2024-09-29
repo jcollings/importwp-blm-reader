@@ -47,6 +47,11 @@ class BLMFile extends AbstractIndexedFile implements FileInterface
         $data = '';
         $eor = $this->getEOR();
 
+        // Escape EOR
+        if ($eor == "|") {
+            $eor = "\|";
+        }
+
         do {
             $chunk_size = $this->chunk_size < $remaining_bytes ? $this->chunk_size : $remaining_bytes;
             $data .= fread($this->getFileHandle(), $chunk_size);
