@@ -46,22 +46,15 @@ class BLMFile extends AbstractIndexedFile implements FileInterface
 
         $data = '';
         $eor = $this->getEOR();
-
-        // Escape EOR
-        if ($eor == "|") {
-            $eor = "\|";
-        }
+        $eor_length = strlen($eor);
 
         do {
             $chunk_size = $this->chunk_size < $remaining_bytes ? $this->chunk_size : $remaining_bytes;
             $data .= fread($this->getFileHandle(), $chunk_size);
             $remaining_bytes -= $chunk_size;
 
-            while (preg_match('/' . $eor . '/m', $data, $matches, PREG_OFFSET_CAPTURE) !== 0) {
-                list($captured, $offset) = $matches[0];
-
-                $tag_length = strlen($captured);
-                $string_offset = $offset + $tag_length;
+            while ($eor_length > 0 && ($offset = strpos($data, $eor)) !== false) {
+                $string_offset = $offset + $eor_length;
                 $file_offset += $string_offset;
 
                 $this->setIndex($record, $startIndex, $startIndex + $offset);
@@ -69,9 +62,13 @@ class BLMFile extends AbstractIndexedFile implements FileInterface
                 $record++;
 
                 $data = substr($data, $string_offset);
+
+                if ($this->is_processing && ($record >= 2 || $startIndex > $this->process_max_size)) {
+                    break 2;
+                }
             }
 
-            if ($this->is_processing && ($record >= 2 || $startIndex > $this->process_max_size)) {
+            if ($this->is_processing && $startIndex > $this->process_max_size) {
                 break;
             }
         } while ($remaining_bytes > 0);
@@ -82,41 +79,55 @@ class BLMFile extends AbstractIndexedFile implements FileInterface
         $fh = $this->getFileHandle();
         rewind($fh);
 
-        $sections = [
+        $section_names = array('HEADER', 'DEFINITION', 'DATA', 'END');
+        $sections = array(
             'HEADER' => false,
             'DEFINITION' => false,
             'DATA' => false,
             'END' => false,
-        ];
+        );
 
-        $data = '';
-        $file_offset = 0;
-        $test = '';
+        $carry = '';
+        $position = 0;
 
-        while (!feof($this->getFileHandle())) {
+        while (!feof($fh)) {
+            $chunk = fread($fh, $this->chunk_size);
+            if ($chunk === false || $chunk === '') {
+                break;
+            }
 
-            $data .= fread($this->getFileHandle(), $this->chunk_size);
-            $test .= $data;
+            $buffer = $carry . $chunk;
+            $buffer_base = $position - strlen($carry);
+            $position += strlen($chunk);
 
-            $remaining_sections = array_filter($sections, function ($item) {
-                return !$item;
-            });
+            foreach ($section_names as $section) {
+                if ($sections[$section]) {
+                    continue;
+                }
 
-            foreach (array_keys($remaining_sections) as $section) {
+                $located = $this->locate_section_marker($buffer, $section, $buffer_base);
+                if ($located) {
+                    $sections[$section] = $located;
+                }
+            }
 
-                if (preg_match('/^(#' . $section . '#.*)$/m', $data, $matches, PREG_OFFSET_CAPTURE) !== 0) {
-                    list($captured, $offset) = $matches[0];
+            if (!in_array(false, $sections, true)) {
+                break;
+            }
 
-                    $tag_length = strlen($captured);
-                    $string_offset = $offset + $tag_length;
-                    $file_offset += $string_offset;
+            $carry = $this->section_scan_carry($buffer);
+        }
 
-                    $sections[$section] = [
-                        'tag' => $file_offset - $tag_length,
-                        'start' => $file_offset + 1 // take into account the new line
-                    ];
+        if ($carry !== '' && in_array(false, $sections, true)) {
+            $buffer_base = $position - strlen($carry);
+            foreach ($section_names as $section) {
+                if ($sections[$section]) {
+                    continue;
+                }
 
-                    $data = substr($data, $string_offset);
+                $located = $this->locate_section_marker($carry, $section, $buffer_base, true);
+                if ($located) {
+                    $sections[$section] = $located;
                 }
             }
         }
@@ -173,6 +184,87 @@ class BLMFile extends AbstractIndexedFile implements FileInterface
         fseek($this->getFileHandle(), $sections['DEFINITION']['start']);
         $definition = trim(fread($this->getFileHandle(), $sections['DEFINITION']['length'] - 1));
         $this->config->set('definition', explode($this->config->get('eof'), substr($definition, 0, -1)));
+    }
+
+    /**
+     * Locate a BLM section marker at the start of a line.
+     *
+     * The marker line must end in a newline unless this is the end of the file,
+     * so a tag split across two reads is completed on the next chunk.
+     *
+     * @param string $buffer
+     * @param string $section
+     * @param int $buffer_base Absolute file offset of the first buffer byte.
+     * @param bool $allow_eof Accept a marker that has no trailing newline.
+     * @return array|null
+     */
+    private function locate_section_marker($buffer, $section, $buffer_base, $allow_eof = false)
+    {
+        $needle = '#' . $section . '#';
+        $needle_length = strlen($needle);
+        $length = strlen($buffer);
+        $offset = 0;
+
+        while ($offset <= $length - $needle_length) {
+            $pos = strpos($buffer, $needle, $offset);
+            if ($pos === false) {
+                return null;
+            }
+
+            $at_line_start = $pos === 0 || $buffer[$pos - 1] === "\n";
+            if (!$at_line_start) {
+                $offset = $pos + 1;
+                continue;
+            }
+
+            $line_end = strpos($buffer, "\n", $pos);
+            if ($line_end === false) {
+                if (!$allow_eof) {
+                    return null;
+                }
+
+                return array(
+                    'tag' => $buffer_base + $pos,
+                    'start' => $buffer_base + $length,
+                );
+            }
+
+            return array(
+                'tag' => $buffer_base + $pos,
+                'start' => $buffer_base + $line_end + 1,
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Keep only an unfinished line that could still be a section marker.
+     *
+     * @param string $buffer
+     * @return string
+     */
+    private function section_scan_carry($buffer)
+    {
+        $last_newline = strrpos($buffer, "\n");
+        $tail = $last_newline === false ? $buffer : substr($buffer, $last_newline + 1);
+
+        if ($tail === '') {
+            return '';
+        }
+
+        $max_marker = strlen('#DEFINITION#');
+        if (strlen($tail) <= $max_marker) {
+            return $tail;
+        }
+
+        foreach (array('#HEADER#', '#DEFINITION#', '#DATA#', '#END#') as $marker) {
+            if (strpos($tail, $marker) === 0) {
+                return $tail;
+            }
+        }
+
+        return '';
     }
 
     public function get_header_value($key, $data)

@@ -1,0 +1,14 @@
+#HEADER#
+Version : 3
+EOF : '^'
+EOR : '|'
+Property Count : 2
+Generated Date : 08-OCT-2026 12:00:00
+
+#DEFINITION#
+AGENT_REF^ADDRESS_1^TOWN|
+
+#DATA#
+PIPE01^1 Test Lane^Leeds|
+PIPE02^9 Station Road^York|
+#END#

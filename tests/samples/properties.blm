@@ -1,0 +1,16 @@
+#HEADER#
+Version : 3
+EOF : '^'
+EOR : '~'
+Property Count : 3
+Generated Date : 08-OCT-2026 12:00:00
+
+#DEFINITION#
+AGENT_REF^ADDRESS_1^TOWN^POSTCODE1^DESCRIPTION^PRICE~
+
+#DATA#
+REF001^10 High Street^London^SW1A^A short description.^250000~
+REF002^22 Oak Road^Manchester^M1 1AA^Line one
+Line two with a newline.^175000~
+REF003^5 Pier Walk^Brighton^BN1 1AA^Seaside cottage.^420000~
+#END#

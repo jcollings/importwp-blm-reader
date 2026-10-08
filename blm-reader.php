@@ -5,7 +5,7 @@
  * Plugin URI: https://www.importwp.com
  * Description: Allow Import WP to import BLM Files.
  * Author: James Collings <james@jclabs.co.uk>
- * Version: 0.0.2 
+ * Version: 0.0.3 
  * Author URI: https://www.importwp.com
  * Network: True
  */
@@ -13,13 +13,13 @@
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 define('IWP_BLM_READER_FILE', __FILE__);
-define('IWP_BLM_READER_VERSION', '0.0.2');
+define('IWP_BLM_READER_VERSION', '0.0.3');
 
 add_action('admin_init', 'iwp_blm_reader_check');
 
 function iwp_blm_reader_requirements_met()
 {
-    return false === (is_admin() && current_user_can('activate_plugins') &&  (!function_exists('import_wp') || version_compare(IWP_VERSION, '2.6.2', '<')));
+    return false === (is_admin() && current_user_can('activate_plugins') &&  (!function_exists('import_wp') || version_compare(IWP_VERSION, '2.15.2', '<')));
 }
 
 function iwp_blm_reader_check()
@@ -61,6 +61,6 @@ add_action('plugins_loaded', 'iwp_blm_reader_setup', 9);
 function iwp_blm_reader_notice()
 {
     echo '<div class="error">';
-    echo '<p><strong>Import WP - BLM File Reader Addon</strong> requires that you have <strong>Import WP v2.6.2 or newer</strong> installed.</p>';
+    echo '<p><strong>Import WP - BLM File Reader Addon</strong> requires that you have <strong>Import WP v2.15.2 or newer</strong> installed.</p>';
     echo '</div>';
 }

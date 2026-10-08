@@ -86,7 +86,7 @@ function iwp_blm_get_file($importer, $config = null)
  * @param ImporterModel $importer_model
  * @return array
  */
-function iwp_blmr_preview_file($result, $importer_model)
+function iwp_blmr_preview_file($result, $importer_model, $record_index = null)
 {
     /**
      * @var ImporterManager $importer_manager
@@ -94,18 +94,40 @@ function iwp_blmr_preview_file($result, $importer_model)
     $importer_manager = Container::getInstance()->get('importer_manager');
 
     $config = $importer_manager->get_config($importer_model, true);
-
     $file = iwp_blm_get_file($importer_model, $config);
-    $file->processing(true);
+    $total = $file->getRecordCount();
+    $expected = intval($config->get('property_count'));
 
-    $record = $file->getRecord(0);
+    // file-process stores a short sample index. Rebuild the temp index for paging.
+    if ($expected > 1 && $total < $expected) {
+        $importer_manager->clear_config_files($importer_model->getId(), true);
+        $config = $importer_manager->get_config($importer_model, true);
+        $config->set('preview_full_index', true);
+        $file = iwp_blm_get_file($importer_model, $config);
+        $total = $file->getRecordCount();
+    }
+
+    if ($record_index === null && isset($_POST['record'])) {
+        $record_index = intval($_POST['record']);
+    } else {
+        $record_index = intval($record_index);
+    }
+    if ($total > 0) {
+        $record_index = max(0, min($record_index, $total - 1));
+    } else {
+        $record_index = 0;
+    }
+
+    $record = $total > 0 ? trim($file->getRecord($record_index)) : '';
 
     return [
-        'row' => explode($file->getEOF(), $record),
-        'headings' => $file->getMap()
+        'row' => $record !== '' ? explode($file->getEOF(), $record) : [],
+        'headings' => $file->getMap(),
+        'record' => $record_index,
+        'total' => $total,
     ];
 }
-add_filter('iwp/file-preview/blm', 'iwp_blmr_preview_file', 10, 2);
+add_filter('iwp/file-preview/blm', 'iwp_blmr_preview_file', 10, 3);
 
 /**
  * Get BLM file parser.
@@ -298,8 +320,10 @@ function iwp_blmr_attachment($attachments = '')
                 }
 
                 $output_path = $upload_path . DIRECTORY_SEPARATOR . $part;
-                if (!file_put_contents($output_path, $output_data) > 0) {
+                if (false === file_put_contents($output_path, $output_data)) {
+                    Logger::debug("Unable to write Media: " . $part);
                     $output[] = '';
+                    continue;
                 }
 
                 $output[] = $output_path;

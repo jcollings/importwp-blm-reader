@@ -1,0 +1,14 @@
+#HEADER#
+Version : 3
+EOF : '^'
+EOR : '~'
+Property Count : 2
+Generated Date : 08-OCT-2026 12:00:00
+
+#DEFINITION#
+AGENT_REF^ADDRESS_1^TOWN^MEDIA_IMAGE_00^MEDIA_IMAGE_01^PRICE_QUALIFIER~
+
+#DATA#
+REF100^1 Media Lane^London^image-a.jpg^image-b.jpg^2~
+REF101^2 Media Lane^Bath^missing.jpg^^4~
+#END#
